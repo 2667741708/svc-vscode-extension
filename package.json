@@ -19,8 +19,8 @@
       "activitybar": [
         {
           "id": "svc-container",
-          "title": "SVC 服务器 (FUSE)",
-          "icon": "$(server)"
+          "title": "SVC 远程服务器",
+          "icon": "media/svc-icon.svg"
         }
       ]
     },
