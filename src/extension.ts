@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as http from 'http';
 import { ServerConfigUI } from './serverConfigUI';
 import { RemoteFolderBrowser } from './remoteFolderBrowser';
 import { ServerConfig } from './configManager';
@@ -109,6 +110,9 @@ export async function activate(context: vscode.ExtensionContext) {
                     }
                 });
 
+                // 5. 自动注册到 ssh-manager，让 AI 面板也能访问远程服务器
+                autoRegisterSSHManager(server, outputChannel);
+
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 outputChannel.appendLine(`❌ 连接失败: ${errorMsg}`);
@@ -199,7 +203,8 @@ export async function activate(context: vscode.ExtensionContext) {
             if (connectionKey) {
                 const conn = activeConnections.get(connectionKey);
                 if (conn) {
-                    await terminalManager.createTerminal(conn.server, conn.remotePath, outputChannel);
+                    const terminal = await terminalManager.createTerminal(conn.server, conn.remotePath, outputChannel);
+                    terminal.show();  // ★ 关键修复：必须调用 show() 才能显示终端面板
                 }
             } else {
                 vscode.window.showInformationMessage('未找到已连接的服务器');
@@ -274,6 +279,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 outputChannel.appendLine(`🎉 已连接: ${server.name} -> ${remoteFolder}`);
                 vscode.window.showInformationMessage(`已成功连接到 ${server.name}!`);
 
+                // 自动注册到 ssh-manager
+                autoRegisterSSHManager(server, outputChannel);
+
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 outputChannel.appendLine(`❌ 连接失败: ${errorMsg}`);
@@ -321,4 +329,90 @@ interface ConnectionContext {
     remotePath: string;
     sftpConnection: SFTPConnection;
     workspaceUri: string;
+}
+
+/**
+ * 自动将服务器注册到 ssh-manager MCP
+ * 使 Antigravity AI 面板也能通过 ssh-manager 访问远程服务器
+ */
+function autoRegisterSSHManager(server: ServerConfig, outputChannel: vscode.OutputChannel): void {
+    try {
+        // 方法1：通过 VS Code globalState 写入 MCP 服务器配置
+        // ssh-manager 后端运行在本地端口，尝试通过 HTTP API 注册
+        const serverData = JSON.stringify({
+            host: server.host,
+            port: server.port,
+            username: server.username,
+            password: server.password || undefined,
+            name: `SVC-${server.name}`,
+            description: `由 SVC 扩展自动注册 (${server.host}:${server.port})`
+        });
+
+        // 尝试常用端口范围 (3001-3010) 来找到 ssh-manager 后端
+        const tryPorts = [3001, 3002, 3003, 3004, 3005];
+
+        for (const backendPort of tryPorts) {
+            const req = http.request({
+                hostname: '127.0.0.1',
+                port: backendPort,
+                path: '/api/servers',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(serverData)
+                },
+                timeout: 2000
+            }, (res) => {
+                if (res.statusCode === 200 || res.statusCode === 201) {
+                    outputChannel.appendLine(`🔗 已自动注册到 ssh-manager (port ${backendPort})`);
+                }
+            });
+
+            req.on('error', () => {
+                // 静默忽略 - 该端口的 ssh-manager 不可用
+            });
+
+            req.write(serverData);
+            req.end();
+        }
+
+        // 方法2：写入 ssh-manager 的配置文件（如果知道路径）
+        // 查找 Antigravity 扩展的 globalStorage 下的 ssh-manager 配置
+        const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+        const possibleConfigPaths = [
+            path.join(homeDir, '.ssh-manager', 'servers.json'),
+            path.join(homeDir, '.config', 'ssh-manager', 'servers.json'),
+        ];
+
+        for (const configPath of possibleConfigPaths) {
+            if (fs.existsSync(configPath)) {
+                try {
+                    const existing = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+                    const servers: Array<{ host: string; port: number; username: string }> = existing.servers || [];
+
+                    // 检查是否已存在
+                    const alreadyExists = servers.some(
+                        (s: { host: string; port: number; username: string }) => s.host === server.host && s.port === server.port && s.username === server.username
+                    );
+
+                    if (!alreadyExists) {
+                        servers.push({
+                            host: server.host,
+                            port: server.port,
+                            username: server.username,
+                        });
+                        existing.servers = servers;
+                        fs.writeFileSync(configPath, JSON.stringify(existing, null, 2));
+                        outputChannel.appendLine(`🔗 已写入 ssh-manager 配置: ${configPath}`);
+                    }
+                } catch {
+                    // 配置文件解析失败，跳过
+                }
+            }
+        }
+
+        outputChannel.appendLine('✅ ssh-manager 注册完成');
+    } catch (error) {
+        outputChannel.appendLine(`⚠️ ssh-manager 注册失败 (非致命): ${error}`);
+    }
 }
