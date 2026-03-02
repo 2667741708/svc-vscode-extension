@@ -9,12 +9,14 @@ import { SFTPConnectionPool, SFTPConnection } from './sftpClient';
 import { SSHTerminalManager } from './sshTerminal';
 import { registerServerTreeView } from './serverTreeView';
 import { SVCFileSystemProvider } from './fileSystemProvider';
+import { ServerMonitorProvider } from './serverMonitor';
 
 let sftpPool: SFTPConnectionPool;
 let outputChannel: vscode.OutputChannel;
 let statusBarItem: vscode.StatusBarItem;
 let terminalManager: SSHTerminalManager;
 let fileSystemProvider: SVCFileSystemProvider;
+let monitorProvider: ServerMonitorProvider;
 
 // 活跃的连接
 const activeConnections: Map<string, ConnectionContext> = new Map();
@@ -34,6 +36,20 @@ export async function activate(context: vscode.ExtensionContext) {
         isReadonly: false
     }));
     outputChannel.appendLine('✅ 已注册 svc:// 虚拟文件系统提供程序');
+
+    // 初始化服务器状态监控面板
+    monitorProvider = new ServerMonitorProvider();
+    const monitorTree = vscode.window.createTreeView('svcMonitor', {
+        treeDataProvider: monitorProvider,
+        showCollapseAll: false
+    });
+    context.subscriptions.push(monitorTree);
+    context.subscriptions.push(
+        vscode.commands.registerCommand('svc.refreshMonitor', () => {
+            monitorProvider.refresh();
+        })
+    );
+    outputChannel.appendLine('✅ 已注册服务器状态监控视图');
 
     // 注册服务器树视图
     registerServerTreeView(context);
@@ -112,6 +128,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 // 5. 自动注册到 ssh-manager，让 AI 面板也能访问远程服务器
                 autoRegisterSSHManager(server, outputChannel);
+
+                // 6. 更新服务器状态监控
+                monitorProvider.setServer(server);
 
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
@@ -311,6 +330,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 // 自动注册到 ssh-manager
                 autoRegisterSSHManager(server, outputChannel);
+
+                // 更新服务器状态监控
+                monitorProvider.setServer(server);
 
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);

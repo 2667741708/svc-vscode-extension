@@ -7,6 +7,10 @@
 		{
 			"name": "117.50.138.46 - /root",
 			"uri": "svc://117.50.138.46/root"
+		},
+		{
+			"name": "117.50.138.46 - /root/PALS-safe-Jun-21th-CIFAR100",
+			"uri": "svc://117.50.138.46/root/PALS-safe-Jun-21th-CIFAR100"
 		}
 	]
 }

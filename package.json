@@ -30,6 +30,11 @@
           "id": "svcServers",
           "name": "服务器列表",
           "contextualTitle": "SVC 服务器"
+        },
+        {
+          "id": "svcMonitor",
+          "name": "服务器状态监控",
+          "contextualTitle": "GPU / CPU / 进程"
         }
       ]
     },
@@ -53,6 +58,11 @@
       {
         "command": "svc.clearCache",
         "title": "SVC: 清理缓存"
+      },
+      {
+        "command": "svc.refreshMonitor",
+        "title": "SVC: 刷新监控数据",
+        "icon": "$(refresh)"
       },
       {
         "command": "svc.addServer",
@@ -94,6 +104,11 @@
         {
           "command": "svc.refreshServers",
           "when": "view == svcServers",
+          "group": "navigation"
+        },
+        {
+          "command": "svc.refreshMonitor",
+          "when": "view == svcMonitor",
           "group": "navigation"
         }
       ],
