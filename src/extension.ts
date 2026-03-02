@@ -233,6 +233,36 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // 复制完整远程路径（含 host 信息）
+    // 修复缺陷：VS Code 默认"复制路径"只复制 uri.path 部分，丢失 authority（主机名/IP）
+    context.subscriptions.push(
+        vscode.commands.registerCommand('svc.copyRemotePath', async (uri?: vscode.Uri) => {
+            // uri 可能从右键菜单传入，也可能需要从当前激活编辑器获取
+            let targetUri = uri;
+            if (!targetUri) {
+                targetUri = vscode.window.activeTextEditor?.document.uri;
+            }
+
+            if (!targetUri || targetUri.scheme !== 'svc') {
+                vscode.window.showWarningMessage('请在 svc:// 远程文件上执行此操作');
+                return;
+            }
+
+            // 完整格式: svc://117.50.194.59/root/260224终版
+            const fullPath = targetUri.toString();
+            await vscode.env.clipboard.writeText(fullPath);
+
+            // 同时显示人可读的格式
+            const humanReadable = `${targetUri.authority}:${targetUri.path}`;
+            vscode.window.showInformationMessage(
+                `已复制远程路径: ${humanReadable}`,
+                { modal: false }
+            );
+
+            outputChannel.appendLine(`📋 已复制路径: ${fullPath}`);
+        })
+    );
+
     // 注册 svc.connectWithServer 命令（由 serverTreeView 中 executeCommand 调用）
     context.subscriptions.push(
         vscode.commands.registerCommand('svc.connectWithServer', async (server: ServerConfig) => {
