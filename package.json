@@ -1,0 +1,154 @@
+{
+  "name": "svc-extension-fuse",
+  "displayName": "SVC - Singing Voice Conversion (FUSE)",
+  "description": "VS Code extension for SVC project with FUSE-based remote file access",
+  "version": "0.1.0",
+  "publisher": "svc-project",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "svc-container",
+          "title": "SVC 服务器 (FUSE)",
+          "icon": "$(server)"
+        }
+      ]
+    },
+    "views": {
+      "svc-container": [
+        {
+          "id": "svcServers",
+          "name": "服务器列表",
+          "contextualTitle": "SVC 服务器"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "svc.connect",
+        "title": "SVC: 连接到服务器"
+      },
+      {
+        "command": "svc.disconnect",
+        "title": "SVC: 断开连接"
+      },
+      {
+        "command": "svc.openTerminal",
+        "title": "SVC: 打开 SSH 终端"
+      },
+      {
+        "command": "svc.status",
+        "title": "SVC: 查看状态"
+      },
+      {
+        "command": "svc.clearCache",
+        "title": "SVC: 清理缓存"
+      },
+      {
+        "command": "svc.addServer",
+        "title": "SVC: 添加服务器",
+        "icon": "$(add)"
+      },
+      {
+        "command": "svc.refreshServers",
+        "title": "刷新服务器列表",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "svc.editServer",
+        "title": "编辑服务器",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "svc.deleteServer",
+        "title": "删除服务器",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "svc.connectToServer",
+        "title": "连接到此服务器",
+        "icon": "$(plug)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "svc.addServer",
+          "when": "view == svcServers",
+          "group": "navigation"
+        },
+        {
+          "command": "svc.refreshServers",
+          "when": "view == svcServers",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "svc.connectToServer",
+          "when": "view == svcServers && viewItem == server",
+          "group": "inline"
+        },
+        {
+          "command": "svc.editServer",
+          "when": "view == svcServers && viewItem == server",
+          "group": "inline"
+        },
+        {
+          "command": "svc.deleteServer",
+          "when": "view == svcServers && viewItem == server",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SVC",
+      "properties": {
+        "svc.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "自动连接到上次使用的服务器"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "lint": "eslint src --ext ts",
+    "lint:fix": "eslint src --ext ts --fix"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^18.0.0",
+    "@types/ssh2": "^1.15.0",
+    "@types/ssh2-sftp-client": "^9.0.6",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/test-electron": "^2.3.0",
+    "eslint": "^8.40.0",
+    "glob": "^8.1.0",
+    "mocha": "^10.2.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "ssh2": "^1.15.0",
+    "ssh2-sftp-client": "^10.0.3"
+  }
+}
