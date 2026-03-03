@@ -128,22 +128,22 @@
           "when": "view == svcServers && viewItem == server",
           "group": "inline"
         }
+      ],
+      "explorer/context": [
+        {
+          "command": "svc.copyRemotePath",
+          "when": "resourceScheme == svc",
+          "group": "6_copypath@1"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "svc.copyRemotePath",
+          "when": "resourceScheme == svc",
+          "group": "1_cutcopypaste@99"
+        }
       ]
     },
-    "explorer/context": [
-      {
-        "command": "svc.copyRemotePath",
-        "when": "resourceScheme == svc",
-        "group": "6_copypath@1"
-      }
-    ],
-    "editor/title/context": [
-      {
-        "command": "svc.copyRemotePath",
-        "when": "resourceScheme == svc",
-        "group": "1_cutcopypaste@99"
-      }
-    ],
     "configuration": {
       "title": "SVC",
       "properties": {
@@ -183,5 +183,9 @@
   "dependencies": {
     "ssh2": "^1.15.0",
     "ssh2-sftp-client": "^10.0.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/2667741708/svc-vscode-extension.git"
   }
 }

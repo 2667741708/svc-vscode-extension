@@ -164,17 +164,6 @@ export class ServerConfigUI {
     static async showSelectServerDialog(context: vscode.ExtensionContext): Promise<ServerConfig | undefined> {
         const servers = await ConfigManager.getServers(context);
 
-        if (servers.length === 0) {
-            const addNew = await vscode.window.showInformationMessage(
-                '没有配置的服务器',
-                '添加服务器'
-            );
-            if (addNew) {
-                return await this.showAddServerDialog(context);
-            }
-            return undefined;
-        }
-
         const items = [
             ...servers.map(s => ({
                 label: s.name,
@@ -196,8 +185,9 @@ export class ServerConfigUI {
             }
         ];
 
+        const placeholder = servers.length === 0 ? '尚未配置服务器，请选择操作' : '选择要连接的服务器';
         const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: '选择要连接的服务器',
+            placeHolder: placeholder,
             ignoreFocusOut: true
         });
 
