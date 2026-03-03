@@ -1,36 +1,46 @@
-# SVC - VS Code 远程文件系统扩展
+# SVC - 多服务器 AI 上下文漫游扩展
 
 [![VS Code](https://img.shields.io/badge/VS%20Code-Extension-blue?logo=visualstudiocode)](https://code.visualstudio.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**SVC** (Server Virtual Connection) 是一个 VS Code 扩展，通过 SFTP 协议将远程服务器的文件系统以虚拟文件夹（`svc://`）的形式直接集成到 VS Code 资源管理器中。
+**SVC (Server Virtual Connection)** 是一款专为现代高阶科研人员和复杂工程开发者打造的 VS Code 扩展。它打破了传统开发环境的单点物理限制，让您**像在本地电脑上运行多台服务器一样**，在一个工作区内无缝管理、浏览和调度分布在各个远程节点上的代码与数据。
 
-## ✨ 特性
+## 🌟 核心价值：AI 时代的跨服务器上下文管理器
 
-- 🔌 **一键连接** — 通过侧边栏 TreeView 或状态栏快速连接远程服务器
-- 📂 **远程文件浏览器** — 可视化浏览远程目录结构，选择要打开的文件夹
-- 📝 **原生编辑体验** — 远程文件在 VS Code 中直接打开、编辑、保存，无缝协作
-- 🖥️ **SSH 终端** — 内置 SSH 终端管理器，一键打开远程 Shell
-- ⚡ **高性能** — 内存级目录缓存（5s TTL），减少 SFTP 往返延迟
-- 🔒 **安全连接** — 支持密码和 SSH 私钥认证
-- 🌍 **零依赖** — 无需安装任何外部工具（无 FUSE、无 WinFsp），跨平台兼容
+在传统的远程开发中（例如使用官方的 Remote-SSH 插件），开发者一次只能进入并连接一台服务器进行开发。这导致多台服务器之间的信息相互孤立、数据不流通。科研人员在进行分布式实验时，往往需要频繁切换服务器窗口来手动记录、比对数据，这极大限制了 AI 编程助手（如 GitHub Copilot, Cursor 等）跨项目聚合信息的“上下文窗口”和获取能力。
+
+**SVC 彻底终结了这一困境：**
+
+- 🧠 **全局拓展 AI 的上下文**：通过将多台远程服务器的文件系统以虚拟文件夹（`svc://`）的形式**同时**挂载到本地 VS Code 的同一个工作区，您的 AI 助手现在可以跨越物理服务器的阻隔，随时读取、关联并理解不同项目、不同服务器中的文件内容。
+- 🔬 **专为科研实验流设计**：在执行深度学习实验或其他计算密集型集群任务时，您可以将一台服务器作为代码中枢，另一台作为数据采集分发中心，第三台作为监控日志节点。通过 SVC，您可以在单一窗口内总揽全局，无需再通过多终端手动搬运数据，也不会丢失宝贵的思路上下文。
+- ⚡ **打破信息孤岛**：多服务器间的信息从此完全流通。只需在一个界面内，便能轻松掌控并协调多个远端环境的状态。
+
+## ✨ 主要特性
+
+- 🔌 **全景多点连接** — 允许在一个工作区内同时挂载并连接任意数量的远程服务器目录，真正实现“一览众山小”。
+- 📂 **多维远程文件浏览器** — 可视化浏览多台服务器的目录结构，自由跨服选择并精准打开对应目标文件夹。
+- 📝 **原生级无缝编辑体验** — 远程文件直接在本地 VS Code 中作为原生文档打开、编辑与保存，并实时回写到对应的远程节点。
+- 🖥️ **集成式 SSH 终端矩阵** — 内置 SSH 终端管理器，可一键唤出对应任意各服务器节点的 Shell 控制台。
+- ⚡ **内存级高性能缓存** — 采用智能目录缓存机制（5s TTL），最大限度消除跨网络（SFTP）的数据往返延迟。
+- 🔒 **安全稳定的认证系统** — 全面支持高强度的密码和 SSH 私钥安全认证。
+- 🌍 **真正的零外置依赖** — 纯代码实现（不依赖任何繁重的 FUSE 或 WinFsp 底层模块），跨系统（Win/Mac/Linux）开箱即用。
 
 ## 📦 技术架构
 
 ```
-用户 → VS Code 扩展 → SFTP 连接池 → svc:// 虚拟文件系统 → VS Code 资源管理器
+用户 → VS Code 管理面 → SFTP 多路连接池 → svc:// 跨域虚拟文件系统 → VS Code 全局资源管理器
 ```
 
 核心组件：
 
 | 组件 | 职责 |
 |------|------|
-| `SVCFileSystemProvider` | 实现 `vscode.FileSystemProvider`，将 SFTP 操作映射为虚拟文件系统 |
-| `SFTPConnectionPool` | 管理 SSH/SFTP 连接池，支持连接复用和并发保护 |
-| `ServerTreeView` | 侧边栏服务器列表 UI |
-| `ServerConfigUI` | 服务器配置 WebView 面板 |
-| `RemoteFolderBrowser` | 远程目录选择器 |
-| `SSHTerminalManager` | SSH 终端生命周期管理 |
+| `SVCFileSystemProvider` | 实现 `vscode.FileSystemProvider`，将底层的 SFTP 操作映射为无感的虚拟文件系统并被 AI 捕获 |
+| `SFTPConnectionPool` | 管理多节点 SSH/SFTP 连接池，强力支持连接复用与高并发保护 |
+| `ServerTreeView` | 左侧边栏的全局服务器拓扑列表 UI |
+| `ServerConfigUI` | 高效的服务器环境配置 WebView 面板 |
+| `RemoteFolderBrowser` | 直观的远程多目录选择器 |
+| `SSHTerminalManager` | 多节点 SSH 终端生命周期统筹管理 |
 
 ## 🚀 快速开始
 
@@ -40,45 +50,40 @@
 # 安装依赖
 npm install
 
-# 编译
+# 编译代码
 npm run compile
 
-# 在 VS Code 中按 F5 启动调试
+# 在 VS Code 中按 F5 启动沙盒调试
 ```
 
 ### 使用方法
 
-1. 安装扩展后，左侧 Activity Bar 出现 SVC 图标
-2. 点击 **"添加服务器"** 配置远程服务器（主机、端口、用户名、密码/私钥）
-3. 双击服务器名称 → 浏览远程文件夹 → 选择目标目录
-4. 远程文件将以 `svc://` 虚拟文件系统形式出现在资源管理器中
-5. 直接编辑文件，保存时自动回写到远程服务器
+1. 安装扩展后，左侧 Activity Bar 将自动出现 SVC 图标。
+2. 点击 **"添加服务器"** 配置任意数量的远程服务器（录入主机、端口、用户名及认证信息）。
+3. 双击服务器名称 → 浏览对应远程文件夹 → 定位目标目录。
+4. 挂载完成的远程文件将以 `svc://` 虚拟文件系统形式出现在主资源管理器中。
+5. 开始编辑！在同一界面管理多个服务器节点，同时您的 AI 将自动获得多环境全局视野。
 
-## 📁 项目结构
+## 📁 项目核心结构
 
 ```
 plugin_fuse/
 ├── src/
-│   ├── extension.ts          # 扩展主入口
-│   ├── fileSystemProvider.ts  # svc:// 虚拟文件系统（核心）
-│   ├── sftpClient.ts          # SFTP 连接与连接池
-│   ├── serverTreeView.ts      # 侧边栏服务器列表
-│   ├── serverConfigUI.ts      # 服务器配置 WebView
-│   ├── remoteFolderBrowser.ts # 远程文件夹浏览器
-│   ├── sshTerminal.ts         # SSH 终端管理器
-│   ├── configManager.ts       # 配置管理
-│   ├── cacheManager.ts        # 缓存管理
-│   └── ignoreParser.ts        # .gitignore 风格过滤
-├── package.json               # 扩展清单
-├── tsconfig.json              # TypeScript 配置
-└── CHANGELOG_修改记录.md      # 变更日志
+│   ├── extension.ts          # 扩展生命周期主入口
+│   ├── fileSystemProvider.ts  # svc:// 跨域虚拟文件系统（核心引擎）
+│   ├── sftpClient.ts          # SFTP 协议网络通信与连接池
+│   ├── serverTreeView.ts      # 侧栏服务器拓扑试图
+│   ├── serverConfigUI.ts      # 配置面板
+│   ├── remoteFolderBrowser.ts # 文件夹层级浏览器
+│   ├── sshTerminal.ts         # SSH 终端会话管理器
+...
 ```
 
-## 🔧 配置项
+## 🔧 进阶配置项
 
 | 配置 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `svc.autoStart` | boolean | `true` | 自动连接到上次使用的服务器 |
+| `svc.autoStart` | boolean | `true` | 下次启动自动恢复并连接至上次使用的整个服务器拓扑集 |
 
 ## 📄 License
 
