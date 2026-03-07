@@ -33,3 +33,13 @@
 - 移除了 `autoRegisterSSHManager` 对任何本地端口的 HTTP 扫描，转而安全地通过文件系统的异步读写直接将配置更新至 `.ssh-manager` 目录。
 - 在所有的 `src/sshTerminal.ts`, `src/sftpClient.ts`, `src/extension.ts`, `src/sshConfigParser.ts` 和 `src/serverMonitor.ts` 中，将阻塞的同步 API 操作重构为基于 Promise 的 `fs.promises.*` 异步操作。
 - 修复因 ESLint 在当前 TypeScript 5.9.3 版本时产生的 no-async-promise-executor 和 @typescript-eslint/semi 报错导致编译 lint 不通过的问题。
+
+## 2026-03-07 补充项
+
+| 时间 | 错误现象 / 报错信息 | 原因分析 | 解决方案 | 状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| 2026-03-07 | 扩展宿主启动时立即闪退 (Segmentation Fault) | `ssh2` (v1.17.0) 的原生模块在 Node.js 24 (Antigravity 内置) 下存在兼容性问题，触发段错误。 | 在 `package.json` 中使用 `overrides` 强行将 `ssh2` 版本锁定为 `1.15.0`。 | ✅ 解决 |
+| 2026-03-07 | `npm install` 报错 `EPERM: symlink` | 项目位于 exFAT 格式的分区，该文件系统不支持 Linux 符号链接，导致 `bin` 链接创建失败。 | 执行 `npm install --no-bin-links` 并手动处理编译输出。 | ✅ 解决 |
+| 2026-03-07 | 右键复制路径包含 URL 编码 (如 `%E5%85%AC...`) | `targetUri.toString()` 会对非 ASCII 字符（如中文）进行编码。 | 改用 `targetUri.path`，VS Code 会自动对路径进行解码，返回原始中文字符。 | ✅ 解决 |
+| 2026-03-07 | AI 面板无法通过 `ssh-manager` 发现服务器 | `autoRegisterSSHManager` 逻辑仅在文件已存在时尝试写入，若 `.ssh-manager` 目录缺失则静默跳过。 | 修改代码，在写入前使用 `fs.promises.mkdir` 递归创建配置目录及初始化 JSON 文件。 | ✅ 解决 |
+| 2026-03-07 | MCP 连接错误: `initialize: EOF` 或端口报错 | 误用了基于 Express (HTTP) 的 `mcp-ssh` 包，这与 Antigravity 要求的 `stdio` 协议不兼容。 | 更换为标准 stdio 协议的 `@idletoaster/ssh-mcp-server`，并重新配置 `mcp-config.json`。 | ✅ 解决 |
