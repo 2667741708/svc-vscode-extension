@@ -446,16 +446,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
         context.subscriptions.push(
             vscode.commands.registerCommand('svc.status', () => {
-                if (activeConnections.size === 0) {
-                    vscode.window.showInformationMessage('SVC: 当前未连接任何服务器');
-                    return;
-                }
-
-                const msgs = Array.from(activeConnections.values()).map(conn =>
-                    `${conn.server.name} (${conn.server.username}@${conn.server.host}:${conn.server.port}) -> ${conn.remotePath}`
-                );
-
-                vscode.window.showInformationMessage(`SVC 状态:\n${msgs.join('\n')}`, { modal: true });
+                const statusSummary = monitorProvider.getStatusSummary();
+                vscode.window.showInformationMessage(`SVC 服务器状态报告`, {
+                    modal: true,
+                    detail: statusSummary
+                });
             })
         );
 

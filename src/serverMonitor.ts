@@ -87,6 +87,41 @@ export class ServerMonitorProvider implements vscode.TreeDataProvider<MonitorTre
         this.fetchMonitorData();
     }
 
+    /**
+     * 获取当前监控状态摘要（供弹窗显示）
+     */
+    getStatusSummary(): string {
+        if (!this.activeServer) {
+            return '未连接服务器';
+        }
+        if (!this.monitorData) {
+            return this.loading ? '正在获取服务器状态数据，请稍候...' : '暂无服务器状态数据';
+        }
+
+        const data = this.monitorData;
+        const timeStr = new Date(data.timestamp).toLocaleTimeString('zh-CN');
+
+        let summary = `服务器: ${data.serverName} (${data.host})\n`;
+        summary += `⏰ 更新时间: ${timeStr}\n\n`;
+        summary += `⚙️ CPU 使用率: ${data.cpuUsage.toFixed(1)}%\n`;
+        summary += `🧠 内存使用: ${data.memUsage.used} / ${data.memUsage.total} GB\n`;
+
+        if (data.gpuInfo.length > 0) {
+            summary += `\n🎮 GPU 状态:\n`;
+            data.gpuInfo.forEach(gpu => {
+                summary += `  - GPU ${gpu.index}: ${gpu.gpuUtil}% | ${gpu.memUsed}/${gpu.memTotal} MiB | ${gpu.temp}°C\n`;
+            });
+        } else {
+            summary += `\n🎮 GPU 状态: 未检测到 GPU`;
+        }
+
+        if (data.pythonProcesses.length > 0) {
+            summary += `\n🐍 Python 进程: ${data.pythonProcesses.length} 个正在运行`;
+        }
+
+        return summary;
+    }
+
     getTreeItem(element: MonitorTreeItem): vscode.TreeItem {
         return element;
     }
