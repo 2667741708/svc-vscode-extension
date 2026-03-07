@@ -465,11 +465,9 @@ export async function activate(context: vscode.ExtensionContext) {
             })
         );
 
-        // 复制完整远程路径（含 host 信息）
-        // 修复缺陷：VS Code 默认"复制路径"只复制 uri.path 部分，丢失 authority（主机名/IP）
+        // 复制完整远程路径 - 提供多种格式，并正确解码中文路径
         context.subscriptions.push(
             vscode.commands.registerCommand('svc.copyRemotePath', async (uri?: vscode.Uri) => {
-                // uri 可能从右键菜单传入，也可能需要从当前激活编辑器获取
                 let targetUri = uri;
                 if (!targetUri) {
                     targetUri = vscode.window.activeTextEditor?.document.uri;
@@ -480,18 +478,52 @@ export async function activate(context: vscode.ExtensionContext) {
                     return;
                 }
 
-                // 完整格式: svc://117.50.194.59/root/260224终版
-                const fullPath = targetUri.toString();
-                await vscode.env.clipboard.writeText(fullPath);
+                const host = targetUri.authority;
+                // targetUri.path 在 VS Code 内部已是解码后的原始路径（含中文）
+                const remotePath = targetUri.path;
 
-                // 同时显示人可读的格式
-                const humanReadable = `${targetUri.authority}:${targetUri.path}`;
-                vscode.window.showInformationMessage(
-                    `已复制远程路径: ${humanReadable}`,
-                    { modal: false }
-                );
+                // 格式1: host:path（推荐 AI 使用，最易读）
+                const hostPath = `${host}:${remotePath}`;
+                // 格式2: 纯远程路径（无 host）
+                const pathOnly = remotePath;
+                // 格式3: scp 风格
+                const scpPath = `${host}:${remotePath}`;
+                // 格式4: 原始 svc:// URI（不含中文解码，用于程序调用）
+                const svcUri = targetUri.toString(true); // true = 跳过额外编码，保留原字符
 
-                outputChannel.appendLine(`📋 已复制路径: ${fullPath}`);
+                const items = [
+                    {
+                        label: '$(server) 远程路径（推荐）',
+                        description: hostPath,
+                        value: hostPath
+                    },
+                    {
+                        label: '$(folder) 纯远程路径',
+                        description: pathOnly,
+                        value: pathOnly
+                    },
+                    {
+                        label: '$(link) SVC URI',
+                        description: svcUri,
+                        value: svcUri
+                    },
+                    {
+                        label: '$(terminal) SCP 格式',
+                        description: scpPath,
+                        value: scpPath
+                    }
+                ];
+
+                const picked = await vscode.window.showQuickPick(items, {
+                    placeHolder: '选择要复制的路径格式',
+                    title: '复制远程路径 (SVC)'
+                });
+
+                if (!picked) { return; }
+
+                await vscode.env.clipboard.writeText(picked.value);
+                vscode.window.showInformationMessage(`已复制: ${picked.value}`);
+                outputChannel.appendLine(`📋 已复制路径 [${picked.label.replace(/\$\(.*?\) /, '')}]: ${picked.value}`);
             })
         );
 
