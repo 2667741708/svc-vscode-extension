@@ -666,48 +666,44 @@ export async function deactivate() {
  */
 async function autoRegisterSSHManager(server: ServerConfig, outputChannel: vscode.OutputChannel): Promise<void> {
     try {
-        // 写入 ssh-manager 的配置文件（如果知道路径）
-        // 查找 Antigravity 扩展的 globalStorage 下的 ssh-manager 配置
         const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-        const possibleConfigPaths = [
-            path.join(homeDir, '.ssh-manager', 'servers.json'),
-            path.join(homeDir, '.config', 'ssh-manager', 'servers.json'),
-        ];
+        const configDir = path.join(homeDir, '.ssh-manager');
+        const configPath = path.join(configDir, 'servers.json');
 
-        for (const configPath of possibleConfigPaths) {
+        // 确保目录存在
+        if (!fs.existsSync(configDir)) {
+            await fs.promises.mkdir(configDir, { recursive: true });
+            outputChannel.appendLine(`📁 已创建配置目录: ${configDir}`);
+        }
+
+        let existing: any = { servers: [] };
+        if (fs.existsSync(configPath)) {
             try {
-                // 异步检查文件是否存在
-                await fs.promises.access(configPath);
-
-                try {
-                    const content = await fs.promises.readFile(configPath, 'utf-8');
-                    const existing = JSON.parse(content);
-                    const servers: Array<{ host: string; port: number; username: string }> = existing.servers || [];
-
-                    // 检查是否已存在
-                    const alreadyExists = servers.some(
-                        (s: { host: string; port: number; username: string }) => s.host === server.host && s.port === server.port && s.username === server.username
-                    );
-
-                    if (!alreadyExists) {
-                        servers.push({
-                            host: server.host,
-                            port: server.port,
-                            username: server.username,
-                        });
-                        existing.servers = servers;
-                        await fs.promises.writeFile(configPath, JSON.stringify(existing, null, 2));
-                        outputChannel.appendLine(`🔗 已写入 ssh-manager 配置: ${configPath}`);
-                    }
-                } catch {
-                    // 配置文件解析或写入失败，跳过
-                }
-            } catch {
-                // 文件不存在，跳过
+                const content = await fs.promises.readFile(configPath, 'utf-8');
+                existing = JSON.parse(content);
+            } catch (e) {
+                outputChannel.appendLine(`⚠️ 读取现有配置失败，将重新创建: ${e}`);
             }
         }
 
-        outputChannel.appendLine('✅ ssh-manager 注册完成');
+        const servers: any[] = existing.servers || [];
+        // 检查是否已存在
+        const alreadyExists = servers.some(
+            (s: any) => s.host === server.host && s.port === server.port && s.username === server.username
+        );
+
+        if (!alreadyExists) {
+            servers.push({
+                host: server.host,
+                port: server.port,
+                username: server.username,
+            });
+            existing.servers = servers;
+            await fs.promises.writeFile(configPath, JSON.stringify(existing, null, 2));
+            outputChannel.appendLine(`🔗 已同步到 ssh-manager 配置: ${configPath}`);
+        }
+
+        outputChannel.appendLine('✅ ssh-manager 自动注册完成');
     } catch (error) {
         outputChannel.appendLine(`⚠️ ssh-manager 注册失败 (非致命): ${error}`);
     }
