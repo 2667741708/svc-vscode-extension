@@ -1,14 +1,24 @@
 {
   "name": "svc-extension-fuse",
-  "displayName": "SVC - Singing Voice Conversion (FUSE)",
-  "description": "VS Code extension for SVC project with FUSE-based remote file access",
+  "displayName": "SVC - Server Virtual Connection (Multi-Server AI Context)",
+  "description": "Mount multiple remote servers simultaneously as a virtual file system (svc://) to expand AI coding assistant context window.",
   "version": "0.1.0",
+  "license": "MIT",
   "publisher": "svc-project",
   "engines": {
     "vscode": "^1.80.0"
   },
   "categories": [
+    "Remote Development",
     "Other"
+  ],
+  "keywords": [
+    "ssh",
+    "sftp",
+    "remote",
+    "virtual-file-system",
+    "ai-context",
+    "multi-server"
   ],
   "activationEvents": [
     "*"
@@ -49,7 +59,13 @@
       },
       {
         "command": "svc.openTerminal",
-        "title": "SVC: 打开 SSH 终端"
+        "title": "SVC: 打开 SSH 终端",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "svc.openTerminalFor",
+        "title": "SVC: 为此服务器打开终端",
+        "icon": "$(terminal)"
       },
       {
         "command": "svc.status",
@@ -119,6 +135,11 @@
           "group": "inline"
         },
         {
+          "command": "svc.openTerminalFor",
+          "when": "view == svcServers && viewItem == server",
+          "group": "inline"
+        },
+        {
           "command": "svc.editServer",
           "when": "view == svcServers && viewItem == server",
           "group": "inline"
@@ -153,11 +174,20 @@
           "description": "自动连接到上次使用的服务器"
         }
       }
+    },
+    "terminal": {
+      "profiles": [
+        {
+          "id": "svc.terminalProfile",
+          "title": "SVC: 远程服务器终端",
+          "icon": "$(remote)"
+        }
+      ]
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "node node_modules/typescript/bin/tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "test": "node ./out/test/runTest.js",
@@ -181,8 +211,11 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "ssh2": "^1.15.0",
+    "ssh2": "1.15.0",
     "ssh2-sftp-client": "^10.0.3"
+  },
+  "overrides": {
+    "ssh2": "1.15.0"
   },
   "repository": {
     "type": "git",

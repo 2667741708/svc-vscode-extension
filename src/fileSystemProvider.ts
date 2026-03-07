@@ -22,21 +22,40 @@ export class SVCFileSystemProvider implements vscode.FileSystemProvider {
     readonly onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]> = this._emitter.event;
 
     private sftp: SFTPConnection | null = null;
-    private remotePath: string = '/';
 
-    /** 目录列表内存缓存（TTL 5秒, 减少高频 readDirectory 的 SFTP 往返） */
+    /** 目录列表内存缓存（TTL 30秒, 减少高频 readDirectory 的 SFTP 往返） */
     private dirCache: Map<string, DirCacheEntry> = new Map();
-    private readonly DIR_CACHE_TTL = 5000;
+    private readonly DIR_CACHE_TTL = 30000;
+
+    /** 并发请求队列（防止过多并发请求阻塞 SFTP 连接） */
+    private pendingRequests: Set<string> = new Set();
+    private readonly MAX_CONCURRENT_REQUESTS = 5;
+
+    /** 性能监控 */
+    private outputChannel: vscode.OutputChannel | null = null;
 
     constructor() { }
+
+    /** 设置输出通道用于性能日志 */
+    setOutputChannel(outputChannel: vscode.OutputChannel): void {
+        this.outputChannel = outputChannel;
+    }
+
+    private logPerformance(operation: string, path: string, duration: number): void {
+        if (this.outputChannel && duration > 1000) {
+            this.outputChannel.appendLine(`⚠️ 慢操作: ${operation}(${path}) 耗时 ${duration}ms`);
+        }
+    }
 
     /**
      * 设置 SFTP 连接和远程根路径
      */
     setSFTPConnection(sftp: SFTPConnection, remotePath: string): void {
         this.sftp = sftp;
-        this.remotePath = remotePath;
         this.dirCache.clear();
+        if (this.outputChannel) {
+            this.outputChannel.appendLine(`✅ 文件系统已绑定: ${remotePath}`);
+        }
     }
 
     /**
@@ -44,7 +63,6 @@ export class SVCFileSystemProvider implements vscode.FileSystemProvider {
      */
     clearConnection(): void {
         this.sftp = null;
-        this.remotePath = '/';
         this.dirCache.clear();
     }
 
@@ -98,12 +116,30 @@ export class SVCFileSystemProvider implements vscode.FileSystemProvider {
     async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
         const sftp = this.ensureConnected();
         const remotePath = this.toRemotePath(uri);
+        const startTime = Date.now();
 
         // 检查缓存
         const cached = this.dirCache.get(remotePath);
         if (cached && Date.now() - cached.timestamp < this.DIR_CACHE_TTL) {
+            const duration = Date.now() - startTime;
+            if (this.outputChannel && duration > 100) {
+                this.outputChannel.appendLine(`📁 读取目录(缓存): ${remotePath} - ${cached.entries.length} 项 (${duration}ms)`);
+            }
             return cached.entries;
         }
+
+        // 并发控制：如果同一路径已经在请求中，等待它完成
+        if (this.pendingRequests.has(remotePath)) {
+            // 简单的等待重试机制
+            await new Promise(resolve => setTimeout(resolve, 100));
+            // 再次检查缓存（可能已被其他请求填充）
+            const recached = this.dirCache.get(remotePath);
+            if (recached && Date.now() - recached.timestamp < this.DIR_CACHE_TTL) {
+                return recached.entries;
+            }
+        }
+
+        this.pendingRequests.add(remotePath);
 
         try {
             const files = await sftp.listDirectory(remotePath);
@@ -116,9 +152,23 @@ export class SVCFileSystemProvider implements vscode.FileSystemProvider {
 
             // 写入缓存
             this.dirCache.set(remotePath, { entries, timestamp: Date.now() });
+
+            const duration = Date.now() - startTime;
+            this.logPerformance('readDirectory', remotePath, duration);
+
+            if (this.outputChannel) {
+                this.outputChannel.appendLine(`📁 读取目录: ${remotePath} - ${entries.length} 项 (${duration}ms)`);
+            }
+
             return entries;
         } catch (error) {
+            const duration = Date.now() - startTime;
+            if (this.outputChannel) {
+                this.outputChannel.appendLine(`❌ 读取目录失败: ${remotePath} (${duration}ms) - ${error}`);
+            }
             throw vscode.FileSystemError.FileNotFound(uri);
+        } finally {
+            this.pendingRequests.delete(remotePath);
         }
     }
 

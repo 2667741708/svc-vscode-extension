@@ -44,18 +44,6 @@
 
 ## 🚀 快速开始
 
-### 开发环境
-
-```bash
-# 安装依赖
-npm install
-
-# 编译代码
-npm run compile
-
-# 在 VS Code 中按 F5 启动沙盒调试
-```
-
 ### 使用方法
 
 1. 安装扩展后，左侧 Activity Bar 将自动出现 SVC 图标。

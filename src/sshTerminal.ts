@@ -67,6 +67,9 @@ class SSHTerminal implements vscode.Pseudoterminal {
     /** PTY 是否仍然活跃（SSH 连接未关闭） */
     public isAlive = true;
 
+    /** 是否正在初始化中（隐藏 tmux/cd 等设置命令的输出） */
+    private isInitializing = true;
+
     constructor(
         private server: ServerConfig,
         private remotePath: string,
@@ -80,9 +83,13 @@ class SSHTerminal implements vscode.Pseudoterminal {
             this.dimensions = initialDimensions;
         }
 
+        // 显示加载提示（初始化期间后续输出会被抑制）
+        this.writeEmitter.fire('\r\n  🔄 正在连接到远程服务器...\r\n');
+
         try {
             await this.connect();
         } catch (error) {
+            this.isInitializing = false;
             this.isAlive = false;
             this.writeEmitter.fire(`\r\n❌ SSH 连接失败: ${error}\r\n`);
             this.closeEmitter.fire(1);
@@ -90,29 +97,56 @@ class SSHTerminal implements vscode.Pseudoterminal {
     }
 
     private async connect(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const config: Record<string, unknown> = {
-                host: this.server.host,
-                port: this.server.port,
-                username: this.server.username,
-                readyTimeout: 20000,
-            };
+        const config: Record<string, unknown> = {
+            host: this.server.host,
+            port: this.server.port,
+            username: this.server.username,
+            readyTimeout: 20000,
+        };
 
-            // 配置认证
-            if (this.server.privateKeyPath) {
-                try {
-                    config.privateKey = fs.readFileSync(this.server.privateKeyPath, 'utf8');
-                    if (this.server.password) {
-                        config.passphrase = this.server.password;
-                    }
-                } catch (error) {
-                    reject(new Error(`无法读取私钥: ${error}`));
-                    return;
+        // 配置认证
+        if (this.server.privateKeyPath) {
+            try {
+                config.privateKey = await fs.promises.readFile(this.server.privateKeyPath, 'utf8');
+                if (this.server.password) {
+                    config.passphrase = this.server.password;
                 }
-            } else if (this.server.password) {
-                config.password = this.server.password;
+            } catch (error) {
+                throw new Error(`无法读取私钥: ${error}`);
+            }
+        } else if (this.server.password) {
+            config.password = this.server.password;
+        } else {
+            // 回退尝试加载默认私钥或 ssh-agent
+            const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+            const defaultKeys = [
+                `${homeDir}/.ssh/id_rsa`,
+                `${homeDir}/.ssh/id_ed25519`,
+                `${homeDir}/.ssh/id_ecdsa`
+            ];
+
+            let foundKey = false;
+            for (const keyPath of defaultKeys) {
+                try {
+                    await fs.promises.access(keyPath);
+                    try {
+                        config.privateKey = await fs.promises.readFile(keyPath, 'utf8');
+                        foundKey = true;
+                        break;
+                    } catch (e) {
+                        // ignore
+                    }
+                } catch {
+                    // ignore file not found
+                }
             }
 
+            if (!foundKey && process.env.SSH_AUTH_SOCK) {
+                config.agent = process.env.SSH_AUTH_SOCK;
+            }
+        }
+
+        return new Promise((resolve, reject) => {
             this.sshClient.on('ready', () => {
                 this.outputChannel.appendLine(`✅ SSH 终端已连接: ${this.server.name}`);
 
@@ -128,24 +162,54 @@ class SSHTerminal implements vscode.Pseudoterminal {
 
                     this.stream = stream;
 
-                    // 将远程输出写入终端
+                    // 将远程输出写入终端（初始化期间抑制输出）
                     stream.on('data', (data: Buffer) => {
+                        if (this.isInitializing) {
+                            // 初始化阶段：抑制 SSH 登录横幅、tmux/cd 命令回显
+                            return;
+                        }
                         this.writeEmitter.fire(data.toString());
                     });
 
                     stream.on('close', () => {
                         this.isAlive = false;
+                        this.isInitializing = false;
                         this.closeEmitter.fire(0);
                     });
 
                     stream.stderr.on('data', (data: Buffer) => {
+                        if (this.isInitializing) { return; }
                         this.writeEmitter.fire(data.toString());
                     });
 
-                    // 切换到工作目录
-                    if (this.remotePath) {
-                        stream.write(`cd ${this.remotePath}\n`);
-                    }
+                    // 注入 Tmux 持久化终端支持
+                    setTimeout(() => {
+                        const sessionName = `svc_term_${this.server.username}_${this.server.host}`.replace(/[^a-zA-Z0-9_]/g, '_');
+                        // 构建注入指令：检查是否存在该会话，不存在则创建并设置鼠标滚轮与历史长度，最后 attach
+                        const tmuxCmd = `if command -v tmux >/dev/null 2>&1; then tmux has-session -t ${sessionName} 2>/dev/null || (tmux new-session -d -s ${sessionName} && tmux set-option -t ${sessionName} -g mouse on && tmux set-option -t ${sessionName} -g history-limit 100000); tmux attach-session -t ${sessionName}; else echo "tmux not found"; fi`;
+
+                        stream.write(`${tmuxCmd}\n`);
+
+                        // cd 到目标路径，然后结束初始化并清屏
+                        const finishInit = () => {
+                            this.isInitializing = false;
+                            // 发送 ANSI 清屏序列，清除加载提示
+                            this.writeEmitter.fire('\x1b[2J\x1b[H');
+                            // 在远程 shell 中也清屏
+                            stream.write('clear\n');
+                        };
+
+                        if (this.remotePath) {
+                            // 等待 tmux 附着完成
+                            setTimeout(() => {
+                                stream.write(`cd "${this.remotePath}" 2>/dev/null\n`);
+                                // 等 cd 完成后清屏并结束初始化
+                                setTimeout(finishInit, 300);
+                            }, 800);
+                        } else {
+                            setTimeout(finishInit, 800);
+                        }
+                    }, 500);
 
                     resolve();
                 });

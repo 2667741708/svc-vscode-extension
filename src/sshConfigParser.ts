@@ -11,15 +11,17 @@ export interface SSHConfigHost {
 }
 
 export class SSHConfigParser {
-    static parseConfig(filePath?: string): SSHConfigHost[] {
+    static async parseConfig(filePath?: string): Promise<SSHConfigHost[]> {
         const configPath = filePath || path.join(os.homedir(), '.ssh', 'config');
+        const hosts: SSHConfigHost[] = [];
 
-        if (!fs.existsSync(configPath)) {
-            return [];
+        try {
+            await fs.promises.access(configPath);
+        } catch {
+            return hosts;
         }
 
-        const content = fs.readFileSync(configPath, 'utf-8');
-        const hosts: SSHConfigHost[] = [];
+        const content = await fs.promises.readFile(configPath, 'utf-8');
         let currentHost: SSHConfigHost | null = null;
 
         const lines = content.split('\n');

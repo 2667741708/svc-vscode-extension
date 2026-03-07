@@ -51,6 +51,7 @@ export class ServerMonitorProvider implements vscode.TreeDataProvider<MonitorTre
     /**
      * 绑定到一台服务器并开始自动刷新监控
      */
+
     setServer(server: ServerConfig): void {
         this.activeServer = server;
         this.monitorData = null;
@@ -145,7 +146,7 @@ export class ServerMonitorProvider implements vscode.TreeDataProvider<MonitorTre
     }
 
     /** 通过 SSH 采集监控数据 */
-    private fetchMonitorData(): void {
+    private async fetchMonitorData(): Promise<void> {
         if (!this.activeServer) { return; }
         this.loading = true;
         this._onDidChangeTreeData.fire();
@@ -162,9 +163,13 @@ export class ServerMonitorProvider implements vscode.TreeDataProvider<MonitorTre
 
         if (server.privateKeyPath) {
             try {
-                config.privateKey = fs.readFileSync(server.privateKeyPath, 'utf8');
-                if (server.password) { config.passphrase = server.password; }
-            } catch { /* ignore */ }
+                config.privateKey = await fs.promises.readFile(server.privateKeyPath, 'utf8');
+                if (server.password) {
+                    config.passphrase = server.password;
+                }
+            } catch {
+                // fallthrough
+            }
         } else if (server.password) {
             config.password = server.password;
         }

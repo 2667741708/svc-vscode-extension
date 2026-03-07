@@ -8,3 +8,17 @@ test/**
 tsconfig.json
 *.md
 *.map
+.vscode/**
+.vscode-test/**
+out/**/*.map
+src/**
+.gitignore
+vsc-extension-quickstart.md
+**/tsconfig.json
+**/.eslintrc.json
+**/*.map
+**/*.ts
+PRT激活码
+test_sanity.js
+.agents/**
+.cursor/**

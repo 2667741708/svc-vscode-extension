@@ -13,13 +13,23 @@ export class RemoteFolderBrowser {
     private currentPath: string = '/';
     private pathHistory: string[] = [];
     private historyIndex: number = -1;
+    private recentPaths: string[] = [];
 
     constructor(
         private sftp: SFTPConnection,
-        private remotePath: string = '/'
+        private remotePath: string = '/',
+        recentPaths: string[] = []
     ) {
-        this.currentPath = remotePath;
-        this.pathHistory.push(remotePath);
+        this.recentPaths = recentPaths;
+        // 如果提供了最近的历史记录，且当前指定的 remotePath 未特别配置（默认根目录），
+        // 或者指定的就是上次记录的路径，那么直接把“初始”界面定位到上次所在的最后一条历史路径。
+        if (this.recentPaths.length > 0 && (remotePath === '/' || remotePath === this.recentPaths[0])) {
+             this.currentPath = this.recentPaths[0];
+        } else {
+             this.currentPath = remotePath;
+        }
+        
+        this.pathHistory.push(this.currentPath);
         this.historyIndex = 0;
     }
 
@@ -52,6 +62,11 @@ export class RemoteFolderBrowser {
                 if (selected.file) {
                     await this.enterDirectory(selected.file.path);
                 }
+            } else if (selected.action === 'enter_history') {
+                if (selected.detail) {
+                    // QuickPickItem 的 detail 存了完整的远程路径
+                    await this.enterDirectory(selected.detail);
+                }
             }
         }
     }
@@ -66,7 +81,23 @@ export class RemoteFolderBrowser {
             action: 'select'
         });
 
-        items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
+        // 最近访问历史（只在初次进入或未前进/后退，且有记录时显示，防止列表一直冗长）
+        if (this.historyIndex === 0 && this.recentPaths.length > 0) {
+            items.push({ label: '最近访问', kind: vscode.QuickPickItemKind.Separator });
+            // 过滤掉当前正处于的路径，没必要再次显示
+            for (const rp of this.recentPaths) {
+                if (rp !== this.currentPath) {
+                    items.push({
+                        label: `$(history) ${rp}`,
+                        description: '最近打开过',
+                        action: 'enter_history',
+                        detail: rp
+                    });
+                }
+            }
+        }
+
+        items.push({ label: '导航', kind: vscode.QuickPickItemKind.Separator });
 
         // 导航按钮
         if (this.historyIndex > 0) {
@@ -145,8 +176,16 @@ export class RemoteFolderBrowser {
     }
 
     private async listDirectory(currentPath: string): Promise<RemoteFile[]> {
+        const startTime = Date.now();
         try {
             const files = await this.sftp.listDirectory(currentPath);
+            const duration = Date.now() - startTime;
+
+            // 如果超过1秒，在状态栏显示提示
+            if (duration > 1000) {
+                vscode.window.setStatusBarMessage(`📁 读取 ${currentPath} 耗时 ${duration}ms`, 3000);
+            }
+
             return files.map(file => ({
                 name: file.name,
                 path: file.path,
@@ -155,6 +194,8 @@ export class RemoteFolderBrowser {
                 modifiedTime: file.modifyTime
             }));
         } catch (error) {
+            const duration = Date.now() - startTime;
+            vscode.window.showErrorMessage(`无法读取目录 (${duration}ms): ${error}`);
             throw new Error(`无法读取目录: ${error}`);
         }
     }
@@ -219,6 +260,6 @@ export class RemoteFolderBrowser {
 }
 
 interface QuickPickItem extends vscode.QuickPickItem {
-    action?: 'select' | 'back' | 'forward' | 'parent' | 'home' | 'enter' | 'none';
+    action?: 'select' | 'back' | 'forward' | 'parent' | 'home' | 'enter' | 'enter_history' | 'none';
     file?: RemoteFile;
 }

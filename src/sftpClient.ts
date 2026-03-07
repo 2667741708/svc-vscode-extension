@@ -25,6 +25,7 @@ export class SFTPConnection {
             return;
         }
 
+        const startTime = Date.now();
         const connectConfig: Record<string, unknown> = {
             host: this.config.host,
             port: this.config.port,
@@ -34,7 +35,7 @@ export class SFTPConnection {
         // 优先使用私钥，其次使用密码
         if (this.config.privateKeyPath) {
             try {
-                connectConfig.privateKey = fs.readFileSync(this.config.privateKeyPath, 'utf8');
+                connectConfig.privateKey = await fs.promises.readFile(this.config.privateKeyPath, 'utf8');
                 if (this.config.password) {
                     connectConfig.passphrase = this.config.password;
                 }
@@ -44,15 +45,52 @@ export class SFTPConnection {
         } else if (this.config.password) {
             connectConfig.password = this.config.password;
         } else {
-            throw new Error('必须提供密码或私钥');
+            // 尝试加载默认私钥或 ssh-agent
+            const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+            const defaultKeys = [
+                `${homeDir}/.ssh/id_rsa`,
+                `${homeDir}/.ssh/id_ed25519`,
+                `${homeDir}/.ssh/id_ecdsa`
+            ];
+
+            let foundKey = false;
+            for (const keyPath of defaultKeys) {
+                try {
+                    await fs.promises.access(keyPath);
+                    try {
+                        connectConfig.privateKey = await fs.promises.readFile(keyPath, 'utf8');
+                        foundKey = true;
+                        break;
+                    } catch (e) {
+                        // 忽略读取错误，尝试下一个
+                    }
+                } catch {
+                    // 文件不存在，尝试下一个
+                }
+            }
+
+            if (!foundKey && process.env.SSH_AUTH_SOCK) {
+                connectConfig.agent = process.env.SSH_AUTH_SOCK;
+                foundKey = true;
+            }
+
+            if (!foundKey) {
+                // 不再绝对阻断，让底层的 tryKeyboard 等可能去工作（如果实现），或最晚报错
+                // throw new Error('必须提供密码或私钥');
+            }
         }
 
-        // 连接超时设置
-        connectConfig.readyTimeout = 20000;
-        connectConfig.retries = 2;
+        // 连接超时设置（优化：减少超时时间，添加 keepalive）
+        connectConfig.readyTimeout = 10000;
+        connectConfig.retries = 1;
+        connectConfig.keepaliveInterval = 10000;
+        connectConfig.keepaliveCountMax = 3;
 
         await this.client.connect(connectConfig);
         this.connected = true;
+
+        const duration = Date.now() - startTime;
+        console.log(`✅ SFTP 已连接: ${this.config.username}@${this.config.host}:${this.config.port} (${duration}ms)`);
     }
 
     async disconnect(): Promise<void> {
@@ -65,8 +103,16 @@ export class SFTPConnection {
     async listDirectory(path: string): Promise<RemoteFileInfo[]> {
         this.ensureConnected();
 
+        const startTime = Date.now();
         try {
             const list = await this.client.list(path);
+            const duration = Date.now() - startTime;
+
+            // 如果超过2秒，记录警告（可通过外部日志查看）
+            if (duration > 2000) {
+                console.warn(`⚠️ SFTP listDirectory 慢: ${path} 耗时 ${duration}ms (${list.length} 项)`);
+            }
+
             return list.map((item: { name: string; type: 'd' | '-' | 'l'; size: number; modifyTime: number }): RemoteFileInfo => ({
                 name: item.name,
                 path: this.joinPath(path, item.name),
@@ -75,6 +121,8 @@ export class SFTPConnection {
                 modifyTime: item.modifyTime
             }));
         } catch (error) {
+            const duration = Date.now() - startTime;
+            console.error(`❌ SFTP listDirectory 失败: ${path} (${duration}ms)`, error);
             throw new Error(`无法列出目录 ${path}: ${error}`);
         }
     }

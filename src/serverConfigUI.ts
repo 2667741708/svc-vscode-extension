@@ -206,7 +206,7 @@ export class ServerConfigUI {
 
     static async showImportFromSSHConfig(context: vscode.ExtensionContext): Promise<ServerConfig | undefined> {
         try {
-            const sshHosts = SSHConfigParser.parseConfig();
+            const sshHosts = await SSHConfigParser.parseConfig();
 
             if (sshHosts.length === 0) {
                 vscode.window.showInformationMessage('未找到 SSH config 或没有可用的主机配置');

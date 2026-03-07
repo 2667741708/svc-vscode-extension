@@ -18,3 +18,18 @@
 | 2026-02-26 | **[F6]** SSH 终端 PTY 复用 bug | 旧 PTY 已关闭但仍被复用 → 新 Terminal 绑定死 PTY | 添加 `isAlive` 属性，已死实例自动替换 | 已解决 |
 | 2026-02-26 | **[ESLint]** 正则转义 + 编码损坏 | regex `\.` 不必要转义 + PowerShell 改变编码 | 以 UTF-8 重新创建文件并修正正则 | 已解决 |
 | 2026-03-01 | **[挂载]** “无法挂载远程服务器到我本地文件夹” / `mountPath` 硬编码错误 | 在 `svc.connectWithServer` 流程中（通过树视图点击触发），`mountPath` 被硬编码为了 `Z:\`，忽略了用户通过 `mountPoint` 设置的自定义挂载路径；另外如果用户设定的挂载路径是本地特定的空文件夹，该文件夹如果未被提前建立，WinFsp 进行挂载时将会报错或超时不响应。 | 在 `extension.ts` 中修正了 `mountPath` 的取值逻辑，统一从配置读取。同时加入了自动检测，如果挂载目标是具体的本地文件夹而不是单一的驱动器盘符（如长度大于3），则自动调用 `fs.mkdirSync(mountPath, { recursive: true })` 进行创建。 | ✅ 已解决 |
+
+## Issue: 扩展宿主崩溃与 AI 面板停止工作
+
+**症状:**
+1. 安装 `plugin_fuse` 后，Antigravity 不断报错 "Extension host terminated unexpectedly 3 times within the last 5 minutes"。
+2. 扩展导致编辑器右侧 AI 面板报错，连不上 Google 大语言模型。
+
+**原因分析:**
+1. 扩展广泛使用了 `fs.readFileSync` 和 `fs.existsSync` 等同步阻塞 IO 接口，这在 Antigravity 这种有着严格事件循环超时监控的编辑器中会引发扩展宿主崩溃重启。
+2. `extension.ts` 中的 `autoRegisterSSHManager` 方法通过 `http.request` 盲猜本地端口（3001-3005）并发送 `POST /api/servers` 的请求去注册服务器状态。这正好命中并污染了 Antigravity 内置 AI 服务（可能是通过这几个端口提供智能提示和大模型代理服务），导致它收到异常数据抛出错误并下线。
+
+**修复:**
+- 移除了 `autoRegisterSSHManager` 对任何本地端口的 HTTP 扫描，转而安全地通过文件系统的异步读写直接将配置更新至 `.ssh-manager` 目录。
+- 在所有的 `src/sshTerminal.ts`, `src/sftpClient.ts`, `src/extension.ts`, `src/sshConfigParser.ts` 和 `src/serverMonitor.ts` 中，将阻塞的同步 API 操作重构为基于 Promise 的 `fs.promises.*` 异步操作。
+- 修复因 ESLint 在当前 TypeScript 5.9.3 版本时产生的 no-async-promise-executor 和 @typescript-eslint/semi 报错导致编译 lint 不通过的问题。
