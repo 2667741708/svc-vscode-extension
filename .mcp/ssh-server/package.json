@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@idletoaster/ssh-mcp-server": "^2.1.9"
+  }
+}
