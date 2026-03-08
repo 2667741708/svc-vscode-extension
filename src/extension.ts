@@ -474,23 +474,48 @@ export async function activate(context: vscode.ExtensionContext) {
                 }
 
                 const host = targetUri.authority;
+                
+                // 从 activeConnections 查找匹配此 host 的连接信息
+                // 注意: activeConnections 的 key 是 username@host:port 的格式，不能直接用 host get。
+                let connection: ConnectionContext | undefined;
+                for (const conn of activeConnections.values()) {
+                    if (conn.server.host === host) {
+                        connection = conn;
+                        break;
+                    }
+                }
+
                 // targetUri.path 在 VS Code 内部已是解码后的原始路径（含中文）
                 const remotePath = targetUri.path;
 
-                // 格式1: host:path（推荐 AI 使用，最易读）
-                const hostPath = `${host}:${remotePath}`;
+                // 格式1: 详细上下文格式（最适合 AI 提示）
+                let aiContextPath = '';
+                let scpPath = '';
+                
+                if (connection) {
+                    const server = connection.server;
+                    aiContextPath = `[Server: ${server.name} | User: ${server.username} | IP: ${server.host} | Port: ${server.port}] \nPath: ${remotePath}`;
+                    scpPath = `${server.username}@${server.host}:${remotePath}`;
+                } else {
+                    aiContextPath = `[Host: ${host}] \nPath: ${remotePath}`;
+                    scpPath = `${host}:${remotePath}`;
+                }
+
                 // 格式2: 纯远程路径（无 host）
                 const pathOnly = remotePath;
-                // 格式3: scp 风格
-                const scpPath = `${host}:${remotePath}`;
-                // 格式4: 原始 svc:// URI（不含中文解码，用于程序调用）
+                // 格式3: 原始 svc:// URI（不含中文解码，用于程序调用）
                 const svcUri = targetUri.toString(true); // true = 跳过额外编码，保留原字符
 
                 const items = [
                     {
-                        label: '$(server) 远程路径（推荐）',
-                        description: hostPath,
-                        value: hostPath
+                        label: '$(hubot) 给 AI 看的详细路径',
+                        description: aiContextPath.replace(/\n/g, ' '),
+                        value: aiContextPath
+                    },
+                    {
+                        label: '$(terminal) SCP/SSH 标准格式',
+                        description: scpPath,
+                        value: scpPath
                     },
                     {
                         label: '$(folder) 纯远程路径',
@@ -498,14 +523,9 @@ export async function activate(context: vscode.ExtensionContext) {
                         value: pathOnly
                     },
                     {
-                        label: '$(link) SVC URI',
+                        label: '$(link) SVC 内部 URI',
                         description: svcUri,
                         value: svcUri
-                    },
-                    {
-                        label: '$(terminal) SCP 格式',
-                        description: scpPath,
-                        value: scpPath
                     }
                 ];
 
